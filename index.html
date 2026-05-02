@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wayback CDX Bulk Fetcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --text:       #D8D8D8;
+  --text-muted: #8A8A8A;
+  --text-dim:   #555;
+  --teal:       #6EC4CE;
+  --teal-dim:   rgba(110,196,206,0.18);
+  --amber:      #C8A96E;
+  --amber-dim:  rgba(200,169,110,0.16);
+  --coral:      #C87878;
+  --coral-dim:  rgba(200,120,120,0.16);
+  --green:      #7ABDA0;
+  --green-dim:  rgba(122,189,160,0.16);
+  --card:       rgba(10,10,12,0.72);
+  --card-hover: rgba(10,10,12,0.82);
+  --border:     rgba(216,216,216,0.10);
+  --border-md:  rgba(216,216,216,0.18);
+  --input-bg:   rgba(255,255,255,0.05);
+}
+
+html, body {
+  min-height: 100vh;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 14px;
+  color: var(--text);
+  background: #090909;
+}
+
+/* ── Background ── */
+.bg-wrap {
+  position: fixed; inset: 0; z-index: 0;
+  background: url('background.jpg') center center / cover no-repeat;
+}
+.bg-wrap::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(135deg, rgba(0,0,0,0.88) 0%, rgba(4,8,12,0.80) 100%);
+}
+
+/* ── Layout ── */
+.shell {
+  position: relative; z-index: 1;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
+
+/* ── Header ── */
+.header {
+  padding: 36px 0 28px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 32px;
+}
+.header-top {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+.header h1 {
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  color: var(--text);
+}
+.header-sub {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 300;
+  letter-spacing: 0.06em;
+}
+.header p {
+  font-size: 12px;
+  color: var(--text-muted);
+  font-weight: 300;
+  max-width: 560px;
+  line-height: 1.6;
+}
+
+/* ── Cards ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  backdrop-filter: blur(18px);
+  -webkit-backdrop-filter: blur(18px);
+}
+.card-pad { padding: 24px; }
+
+/* ── Two-col grid ── */
+.layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 20px;
+  align-items: start;
+}
+.sidebar { display: flex; flex-direction: column; gap: 14px; }
+
+/* ── Form fields ── */
+.field { display: flex; flex-direction: column; gap: 6px; }
+.field label {
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.field input[type=text] {
+  background: var(--input-bg);
+  border: 1px solid var(--border-md);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 13px;
+  padding: 9px 12px;
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+.field input[type=text]:focus { border-color: var(--teal); }
+.field input[type=text]::placeholder { color: var(--text-dim); }
+.field small {
+  font-size: 10px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+/* ── Toggle pill row ── */
+.toggle-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.tog {
+  padding: 5px 12px;
+  border-radius: 20px;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border-md);
+  background: transparent;
+  color: var(--text-muted);
+  transition: all 0.18s;
+  letter-spacing: 0.03em;
+}
+.tog:hover { border-color: var(--text-muted); color: var(--text); }
+.tog.active { background: var(--teal-dim); border-color: var(--teal); color: var(--teal); }
+
+/* ── Divider ── */
+.rule { border: none; border-top: 1px solid var(--border); margin: 4px 0; }
+
+/* ── Buttons ── */
+.btn {
+  width: 100%;
+  padding: 10px 16px;
+  border-radius: 8px;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.18s;
+  border: 1px solid;
+}
+.btn:disabled { opacity: 0.35; cursor: not-allowed; }
+.btn-run {
+  background: var(--teal);
+  color: #050c0d;
+  border-color: var(--teal);
+}
+.btn-run:hover:not(:disabled) { filter: brightness(1.1); }
+.btn-stop {
+  background: transparent;
+  color: var(--coral);
+  border-color: var(--coral);
+}
+.btn-stop:hover:not(:disabled) { background: var(--coral-dim); }
+
+/* ── Stats ── */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  backdrop-filter: blur(12px);
+  padding: 14px 16px 12px;
+}
+.stat-val {
+  font-size: 22px;
+  font-weight: 600;
+  line-height: 1;
+  margin-bottom: 4px;
+  color: var(--text);
+}
+.stat-val.teal { color: var(--teal); }
+.stat-val.amber { color: var(--amber); }
+.stat-val.green { color: var(--green); }
+.stat-val.coral { color: var(--coral); }
+.stat-lbl {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* ── Progress ── */
+.progress-wrap { margin-bottom: 12px; }
+.prog-row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-bottom: 6px;
+}
+.prog-track {
+  height: 2px;
+  background: var(--border);
+  border-radius: 2px;
+  overflow: hidden;
+}
+.prog-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--teal);
+  border-radius: 2px;
+  transition: width 0.4s ease;
+}
+
+/* ── Log ── */
+.log-box {
+  background: rgba(0,0,0,0.35);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  height: 110px;
+  overflow-y: auto;
+  font-family: 'Hanken Grotesk', monospace;
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--text-muted);
+}
+.log-box::-webkit-scrollbar { width: 3px; }
+.log-box::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 2px; }
+.log-box .ok   { color: var(--green); }
+.log-box .err  { color: var(--coral); }
+.log-box .info { color: var(--teal); }
+
+/* ── Results panel ── */
+.results-panel { display: flex; flex-direction: column; gap: 14px; }
+
+/* ── Toolbar ── */
+.toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.toolbar-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.search-input {
+  background: var(--input-bg);
+  border: 1px solid var(--border-md);
+  border-radius: 8px;
+  color: var(--text);
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 12px;
+  padding: 7px 11px;
+  outline: none;
+  width: 200px;
+  transition: border-color 0.2s;
+}
+.search-input:focus { border-color: var(--teal); }
+.search-input::placeholder { color: var(--text-dim); }
+.showing {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+
+/* ── Table ── */
+.table-wrap {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  overflow-x: auto;
+  background: rgba(0,0,0,0.28);
+  backdrop-filter: blur(12px);
+  min-height: 260px;
+  max-height: 500px;
+  overflow-y: auto;
+}
+.table-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
+.table-wrap::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 2px; }
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+thead tr {
+  border-bottom: 1px solid var(--border-md);
+  background: rgba(0,0,0,0.3);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+}
+th {
+  text-align: left;
+  padding: 9px 14px;
+  font-size: 10px;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.10em;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+td {
+  padding: 7px 14px;
+  border-bottom: 1px solid rgba(216,216,216,0.05);
+  vertical-align: middle;
+  line-height: 1.4;
+}
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+td a {
+  color: var(--teal);
+  text-decoration: none;
+  word-break: break-all;
+  font-size: 11px;
+}
+td a:hover { text-decoration: underline; }
+
+/* ── Badges ── */
+.badge {
+  display: inline-block;
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.b-page    { background: var(--green-dim);  color: var(--green);  border: 1px solid rgba(122,189,160,0.3); }
+.b-image   { background: var(--teal-dim);   color: var(--teal);   border: 1px solid rgba(110,196,206,0.3); }
+.b-asset   { background: rgba(216,216,216,0.07); color: var(--text-muted); border: 1px solid var(--border); }
+.b-file    { background: var(--amber-dim);  color: var(--amber);  border: 1px solid rgba(200,169,110,0.3); }
+.b-outlink { background: var(--coral-dim);  color: var(--coral);  border: 1px solid rgba(200,120,120,0.3); }
+
+/* ── Status codes ── */
+.s2 { color: var(--green); }
+.s3 { color: var(--amber); }
+.s4 { color: var(--coral); }
+
+/* ── Empty state ── */
+.empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--text-dim);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+/* ── Download row ── */
+.dl-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.dl-btn {
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  background: transparent;
+  color: var(--amber);
+  border: 1px solid rgba(200,169,110,0.35);
+  transition: all 0.18s;
+  letter-spacing: 0.03em;
+}
+.dl-btn:hover:not(:disabled) { background: var(--amber-dim); }
+.dl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+/* ── Responsive ── */
+@media (max-width: 780px) {
+  .layout { grid-template-columns: 1fr; }
+  .stats-grid { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+
+<div class="bg-wrap"></div>
+
+<div class="shell">
+  <div class="header">
+    <div class="header-top">
+      <h1>Wayback CDX Bulk Fetcher</h1>
+      <span class="header-sub">Internet Archive · CDX API</span>
+    </div>
+    <p>Retrieve up to 100,000+ captured URLs, images, and external outlinks for any domain from the Wayback Machine index.</p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats-grid">
+    <div class="stat">
+      <div class="stat-val" id="s-total">—</div>
+      <div class="stat-lbl">Captured URLs</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val teal" id="s-images">—</div>
+      <div class="stat-lbl">Images</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val amber" id="s-pages">—</div>
+      <div class="stat-lbl">Pages</div>
+    </div>
+    <div class="stat">
+      <div class="stat-val coral" id="s-outlinks">—</div>
+      <div class="stat-lbl">Outlinks</div>
+    </div>
+  </div>
+
+  <div class="layout">
+    <!-- Sidebar -->
+    <div class="sidebar">
+      <div class="card card-pad">
+        <div style="display:flex;flex-direction:column;gap:14px;">
+
+          <div class="field">
+            <label>Target Domain</label>
+            <input type="text" id="inp-url" placeholder="example.com">
+            <small>Do not include https:// or trailing slash</small>
+          </div>
+
+          <div class="field">
+            <label>Date From</label>
+            <input type="text" id="inp-from" placeholder="20100101  (optional)">
+          </div>
+
+          <div class="field">
+            <label>Date To</label>
+            <input type="text" id="inp-to" placeholder="20241231  (optional)">
+          </div>
+
+          <div class="field">
+            <label>Chunk size per request</label>
+            <div class="toggle-row" id="chunk-togs">
+              <button class="tog" onclick="setChunk(this,'5000')">5k</button>
+              <button class="tog active" onclick="setChunk(this,'10000')">10k</button>
+              <button class="tog" onclick="setChunk(this,'25000')">25k</button>
+              <button class="tog" onclick="setChunk(this,'50000')">50k</button>
+            </div>
+            <small>Larger chunks = fewer requests but may timeout on slow connections</small>
+          </div>
+
+          <div class="field">
+            <label>Include Outlinks</label>
+            <div class="toggle-row" id="outlink-togs">
+              <button class="tog active" onclick="setOutlink(this,'yes')">Yes</button>
+              <button class="tog" onclick="setOutlink(this,'no')">No — faster</button>
+            </div>
+            <small>External URLs referenced or linked from the site. Can be slow for large sites.</small>
+          </div>
+
+          <hr class="rule">
+
+          <button class="btn btn-run" id="btn-run" onclick="startFetch()">▶ Fetch All Data</button>
+          <button class="btn btn-stop" id="btn-stop" onclick="stopFetch()" disabled>■ Stop</button>
+        </div>
+      </div>
+
+      <!-- Progress + Log -->
+      <div class="card card-pad">
+        <div class="progress-wrap">
+          <div class="prog-row">
+            <span id="prog-label" style="font-size:11px;">idle</span>
+            <span id="prog-pct" style="font-size:11px;">—</span>
+          </div>
+          <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+        </div>
+        <div class="log-box" id="log">
+          <div class="info">Ready. Enter a domain and press Fetch All Data.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Results -->
+    <div class="results-panel">
+      <!-- Toolbar -->
+      <div class="card card-pad" style="padding:14px 18px;">
+        <div class="toolbar">
+          <span class="toolbar-label">Filter</span>
+          <div class="toggle-row" id="kind-togs">
+            <button class="tog active" onclick="setKind(this,'all')">All</button>
+            <button class="tog" onclick="setKind(this,'page')">Pages</button>
+            <button class="tog" onclick="setKind(this,'image')">Images</button>
+            <button class="tog" onclick="setKind(this,'asset')">CSS / JS</button>
+            <button class="tog" onclick="setKind(this,'file')">Files</button>
+            <button class="tog" onclick="setKind(this,'outlink')">Outlinks</button>
+          </div>
+          <input class="search-input" type="text" id="filter-search" placeholder="Search URLs…" oninput="renderTable()">
+          <span class="showing" id="showing">no data</span>
+        </div>
+      </div>
+
+      <!-- Table -->
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:54%">URL</th>
+              <th style="width:10%">Type</th>
+              <th style="width:18%">MIME</th>
+              <th style="width:8%">Status</th>
+              <th style="width:10%">Archive</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="5" class="empty">Enter a domain and press Fetch All Data to begin.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Downloads -->
+      <div class="card card-pad" style="padding:14px 18px;">
+        <div class="dl-row">
+          <button class="dl-btn" id="dl-all"     onclick="dl('all')"     disabled>↓ All URLs</button>
+          <button class="dl-btn" id="dl-images"  onclick="dl('image')"   disabled>↓ Images only</button>
+          <button class="dl-btn" id="dl-outlinks" onclick="dl('outlink')" disabled>↓ Outlinks by domain</button>
+          <button class="dl-btn" id="dl-csv"     onclick="dl('csv')"     disabled>↓ Full CSV</button>
+          <button class="dl-btn" id="dl-report"  onclick="dl('report')"  disabled>↓ Full report (.txt)</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── State ── */
+const CDX = 'https://web.archive.org/cdx/search/cdx';
+let allRows = [], outlinks = [], stopped = false, running = false;
+let chunkSize = 10000, doOutlinks = true;
+let activeKind = 'all';
+
+const IMG_EXT  = /\.(jpe?g|png|gif|webp|svg|ico|bmp|tiff?|avif|heic)(\?|$)/i;
+const FILE_EXT = /\.(pdf|zip|rar|7z|mp4|mp3|mov|avi|psd|ai|eps|docx?|xlsx?|pptx?|dmg|exe)(\?|$)/i;
+const ASSET_EXT = /\.(css|js|woff2?|ttf|eot|map|json)(\?|$)/i;
+
+function classify(url) {
+  if (!url) return 'page';
+  if (IMG_EXT.test(url))   return 'image';
+  if (FILE_EXT.test(url))  return 'file';
+  if (ASSET_EXT.test(url)) return 'asset';
+  return 'page';
+}
+
+/* ── Toggle helpers ── */
+function setChunk(el, val) {
+  chunkSize = parseInt(val);
+  document.querySelectorAll('#chunk-togs .tog').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+function setOutlink(el, val) {
+  doOutlinks = val === 'yes';
+  document.querySelectorAll('#outlink-togs .tog').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+}
+function setKind(el, kind) {
+  activeKind = kind;
+  document.querySelectorAll('#kind-togs .tog').forEach(b => b.classList.remove('active'));
+  el.classList.add('active');
+  renderTable();
+}
+
+/* ── Log ── */
+function log(msg, cls) {
+  const el = document.getElementById('log');
+  const d = document.createElement('div');
+  if (cls) d.className = cls;
+  d.textContent = '› ' + msg;
+  el.appendChild(d);
+  el.scrollTop = el.scrollHeight;
+}
+
+function setProgress(label, pct) {
+  document.getElementById('prog-label').textContent = label;
+  document.getElementById('prog-pct').textContent   = pct != null ? Math.round(pct) + '%' : '—';
+  document.getElementById('prog-fill').style.width  = (pct || 0) + '%';
+}
+
+function updateStats() {
+  const fmt = n => n.toLocaleString();
+  document.getElementById('s-total').textContent   = fmt(allRows.length);
+  document.getElementById('s-images').textContent  = fmt(allRows.filter(r => r.kind === 'image').length);
+  document.getElementById('s-pages').textContent   = fmt(allRows.filter(r => r.kind === 'page').length);
+  document.getElementById('s-outlinks').textContent = fmt(outlinks.length);
+}
+
+/* ── Core CDX fetch using resumeKey pagination ── */
+async function fetchCDXAll(params, onChunk) {
+  let results = [];
+  let resumeKey = null;
+  let page = 0;
+
+  while (!stopped) {
+    const p = { ...params, output: 'text', limit: chunkSize, showResumeKey: 'true' };
+    if (resumeKey) p.resumeKey = resumeKey;
+
+    const url = CDX + '?' + new URLSearchParams(p);
+    const r = await fetch(url);
+    if (!r.ok) throw new Error('CDX responded ' + r.status);
+    const txt = await r.text();
+
+    // resumeKey is after a blank line at the end
+    const parts = txt.split('\n\n');
+    const body = parts[0].trim();
+    const rk   = parts[1] ? parts[1].trim() : null;
+
+    if (body) {
+      const chunk = body.split('\n').filter(Boolean).map(l => l.split(' '));
+      results = results.concat(chunk);
+    }
+
+    onChunk(results.length, ++page);
+
+    if (!rk || body.split('\n').filter(Boolean).length < chunkSize) break;
+    resumeKey = rk;
+  }
+  return results;
+}
+
+/* ── Main fetch ── */
+async function startFetch() {
+  if (running) return;
+  running = true; stopped = false;
+  allRows = []; outlinks = [];
+
+  const domain = document.getElementById('inp-url').value.trim()
+    .replace(/^https?:\/\//, '').replace(/\/$/, '');
+
+  if (!domain) {
+    log('Please enter a domain first.', 'err');
+    running = false;
+    return;
+  }
+
+  document.getElementById('btn-run').disabled  = true;
+  document.getElementById('btn-stop').disabled = false;
+  ['dl-all','dl-images','dl-outlinks','dl-csv','dl-report']
+    .forEach(id => document.getElementById(id).disabled = true);
+
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('tbody').innerHTML = '<tr><td colspan="5" class="empty">Fetching…</td></tr>';
+  document.getElementById('showing').textContent = '—';
+
+  const fromDate = document.getElementById('inp-from').value.trim();
+  const toDate   = document.getElementById('inp-to').value.trim();
+
+  log('Target: ' + domain, 'info');
+  log('Chunk size: ' + chunkSize.toLocaleString(), 'info');
+  setProgress('Fetching captures…', 3);
+
+  const sitemapParams = {
+    url: domain + '/*',
+    fl: 'original,mimetype,statuscode,timestamp',
+    collapse: 'urlkey',
+  };
+  if (fromDate) sitemapParams.from = fromDate;
+  if (toDate)   sitemapParams.to   = toDate;
+
+  try {
+    const rawRows = await fetchCDXAll(sitemapParams, (count, page) => {
+      log('Chunk ' + page + ' — ' + count.toLocaleString() + ' URLs collected');
+      setProgress('Fetching captures… chunk ' + page, null);
+      allRows = rawRows ? rawRows.slice(0, count) : [];
+      updateStats();
+    });
+
+    if (stopped) { log('Stopped by user.', 'err'); finishFetch(); return; }
+
+    allRows = rawRows.map(r => ({
+      url:    r[0] || '',
+      mime:   r[1] || '',
+      status: r[2] || '',
+      ts:     r[3] || '',
+      kind:   classify(r[0] || '')
+    }));
+
+    log('Captures complete: ' + allRows.length.toLocaleString() + ' URLs', 'ok');
+    setProgress('Captures done', 65);
+    updateStats();
+
+    if (doOutlinks && !stopped) {
+      log('Fetching outlinks…', 'info');
+      setProgress('Fetching outlinks…', 68);
+      const siteSet = new Set(allRows.map(r => r.url));
+
+      try {
+        const oParams = {
+          url: domain + '/*',
+          fl: 'original',
+          showLinksTo: 'true',
+          collapse: 'urlkey',
+        };
+        if (fromDate) oParams.from = fromDate;
+        if (toDate)   oParams.to   = toDate;
+
+        const seen = new Set();
+        const oRaw = await fetchCDXAll(oParams, (count, page) => {
+          log('Outlinks chunk ' + page + ' — ' + count.toLocaleString() + ' so far');
+          setProgress('Outlinks chunk ' + page, null);
+        });
+
+        outlinks = oRaw
+          .map(r => r[0])
+          .filter(u => {
+            if (!u || u.includes(domain) || siteSet.has(u) || seen.has(u)) return false;
+            seen.add(u); return true;
+          });
+
+        log('Outlinks complete: ' + outlinks.length.toLocaleString() + ' unique external URLs', 'ok');
+      } catch (e) {
+        log('Outlinks error: ' + e.message, 'err');
+      }
+    }
+
+    setProgress('Complete', 100);
+    updateStats();
+    renderTable();
+    enableDownloads();
+    log('All done.', 'ok');
+
+  } catch (e) {
+    log('Error: ' + e.message, 'err');
+    setProgress('Error', 0);
+  }
+
+  finishFetch();
+}
+
+function stopFetch() {
+  stopped = true;
+  log('Stopping after current chunk…', 'err');
+}
+
+function finishFetch() {
+  running = false;
+  document.getElementById('btn-run').disabled  = false;
+  document.getElementById('btn-stop').disabled = true;
+}
+
+function enableDownloads() {
+  ['dl-all','dl-images','dl-outlinks','dl-csv','dl-report']
+    .forEach(id => document.getElementById(id).disabled = false);
+}
+
+/* ── Table render (first 2000 rows, download for full) ── */
+const DISP_LIMIT = 2000;
+
+function renderTable() {
+  const search = document.getElementById('filter-search').value.toLowerCase();
+
+  let rows;
+  if (activeKind === 'outlink') {
+    rows = outlinks
+      .filter(u => !search || u.toLowerCase().includes(search))
+      .map(u => ({ url: u, mime: '', status: '', ts: '', kind: 'outlink' }));
+  } else {
+    rows = allRows.filter(r => {
+      if (activeKind !== 'all' && r.kind !== activeKind) return false;
+      if (search && !r.url.toLowerCase().includes(search)) return false;
+      return true;
+    });
+  }
+
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">No results.</td></tr>';
+    document.getElementById('showing').textContent = '0 rows';
+    return;
+  }
+
+  const shown = rows.slice(0, DISP_LIMIT);
+  tbody.innerHTML = shown.map(r => {
+    const safe  = r.url.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    const wbUrl = r.ts ? 'https://web.archive.org/web/' + r.ts + '/' + r.url : r.url;
+    const sc    = parseInt(r.status);
+    const scCls = sc >= 200 && sc < 300 ? 's2' : sc >= 300 && sc < 400 ? 's3' : sc >= 400 ? 's4' : '';
+    return `<tr>
+      <td><a href="${wbUrl}" target="_blank" rel="noopener">${safe}</a></td>
+      <td><span class="badge b-${r.kind}">${r.kind}</span></td>
+      <td style="color:var(--text-muted);font-size:10px;">${r.mime || '—'}</td>
+      <td class="${scCls}" style="font-size:11px;">${r.status || '—'}</td>
+      <td>${r.ts ? `<a href="${wbUrl}" target="_blank" rel="noopener" style="font-size:10px;color:var(--text-muted);">↗ view</a>` : '—'}</td>
+    </tr>`;
+  }).join('');
+
+  const msg = rows.length > DISP_LIMIT
+    ? 'Showing ' + DISP_LIMIT.toLocaleString() + ' of ' + rows.length.toLocaleString() + ' — download for full list'
+    : rows.length.toLocaleString() + ' rows';
+  document.getElementById('showing').textContent = msg;
+}
+
+/* ── Downloads ── */
+function getDomain(u) { try { return new URL(u).hostname; } catch { return u; } }
+
+function dl(type) {
+  const domain = document.getElementById('inp-url').value.trim()
+    .replace(/^https?:\/\//, '').replace(/\/$/, '') || 'export';
+  let content = '', filename = '';
+
+  if (type === 'all') {
+    content  = allRows.map(r => r.url).join('\n');
+    filename = domain + '_all_urls.txt';
+
+  } else if (type === 'image') {
+    content  = allRows.filter(r => r.kind === 'image').map(r => r.url).join('\n');
+    filename = domain + '_images.txt';
+
+  } else if (type === 'outlink') {
+    const byDom = {};
+    outlinks.forEach(u => { const d = getDomain(u); (byDom[d] = byDom[d] || []).push(u); });
+    const lines = ['OUTLINKS BY DOMAIN — ' + domain, '='.repeat(60)];
+    Object.entries(byDom).sort().forEach(([d, urls]) => {
+      lines.push('', '[' + d + '] — ' + urls.length + ' link(s)');
+      urls.forEach(u => lines.push('  ' + u));
+    });
+    content  = lines.join('\n');
+    filename = domain + '_outlinks_by_domain.txt';
+
+  } else if (type === 'csv') {
+    const header = 'url,kind,mime,statuscode,timestamp';
+    const sRows = allRows.map(r =>
+      [r.url, r.kind, r.mime, r.status, r.ts]
+        .map(v => '"' + (v || '').replace(/"/g, '""') + '"').join(',')
+    );
+    const oRows = outlinks.map(u => `"${u}","outlink","","",""`);
+    content  = [header, ...sRows, ...oRows].join('\n');
+    filename = domain + '_full.csv';
+
+  } else if (type === 'report') {
+    const sep = '='.repeat(72);
+    const lines = [
+      sep,
+      'WAYBACK CDX BULK REPORT',
+      'Domain   : ' + domain,
+      'Generated: ' + new Date().toISOString(),
+      sep, '',
+      'SUMMARY',
+      '──────────────────────────────────────',
+      'Total captured URLs : ' + allRows.length.toLocaleString(),
+      '  Pages / HTML      : ' + allRows.filter(r => r.kind === 'page').length.toLocaleString(),
+      '  Images            : ' + allRows.filter(r => r.kind === 'image').length.toLocaleString(),
+      '  CSS / JS assets   : ' + allRows.filter(r => r.kind === 'asset').length.toLocaleString(),
+      '  Other files       : ' + allRows.filter(r => r.kind === 'file').length.toLocaleString(),
+      'Outlinks (unique)   : ' + outlinks.length.toLocaleString(),
+      '', sep,
+      'SECTION 1: PAGES', sep,
+    ];
+    allRows.filter(r => r.kind === 'page').forEach(r => lines.push(r.url + '\t' + r.status + '\t' + r.ts));
+    lines.push('', sep, 'SECTION 2: IMAGES', sep);
+    allRows.filter(r => r.kind === 'image').forEach(r => lines.push(r.url));
+    lines.push('', sep, 'SECTION 3: FILES (PDF, video, etc.)', sep);
+    allRows.filter(r => r.kind === 'file').forEach(r => lines.push(r.url));
+    lines.push('', sep, 'SECTION 4: CSS / JS ASSETS', sep);
+    allRows.filter(r => r.kind === 'asset').forEach(r => lines.push(r.url));
+    lines.push('', sep, 'SECTION 5: OUTLINKS BY DOMAIN', sep);
+    const byDom = {};
+    outlinks.forEach(u => { const d = getDomain(u); (byDom[d] = byDom[d] || []).push(u); });
+    Object.entries(byDom).sort().forEach(([d, urls]) => {
+      lines.push('', '[' + d + '] — ' + urls.length);
+      urls.forEach(u => lines.push('  ' + u));
+    });
+    lines.push('', sep, 'SECTION 6: ALL OUTLINKS (raw)', sep);
+    outlinks.forEach(u => lines.push(u));
+    content  = lines.join('\n');
+    filename = domain + '_wayback_report.txt';
+  }
+
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+}
+</script>
+</body>
+</html>
