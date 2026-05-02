@@ -1,0 +1,787 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wayback CDX Bulk Fetcher</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --fs: 14px;
+  --text:        #D8D8D8;
+  --text-muted:  #8A8A8A;
+  --text-dim:    #4E4E4E;
+  --teal:        #6EC4CE;
+  --teal-glow:   rgba(110,196,206,0.18);
+  --amber:       #C8A96E;
+  --amber-glow:  rgba(200,169,110,0.16);
+  --coral:       #C87878;
+  --coral-glow:  rgba(200,120,120,0.16);
+  --green:       #7ABDA0;
+  --green-glow:  rgba(122,189,160,0.16);
+  --card:        rgba(8,8,10,0.78);
+  --border:      rgba(216,216,216,0.09);
+  --border-md:   rgba(216,216,216,0.17);
+  --input-bg:    rgba(255,255,255,0.04);
+}
+
+html, body {
+  min-height: 100vh;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: var(--fs);
+  color: var(--text);
+  background: #080808;
+  line-height: 1.5;
+}
+
+/* ── Background image ── */
+.bg {
+  position: fixed; inset: 0; z-index: 0;
+  background: url('background.jpg') center center / cover no-repeat;
+}
+.bg::after {
+  content: '';
+  position: absolute; inset: 0;
+  background: linear-gradient(140deg, rgba(0,0,0,0.74) 0%, rgba(4,6,10,0.68) 100%);
+}
+
+/* ── Shell ── */
+.shell {
+  position: relative; z-index: 1;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 0 24px 80px;
+}
+
+/* ── Header ── */
+.hdr { padding: 34px 0 26px; border-bottom: 1px solid var(--border); margin-bottom: 28px; }
+.hdr-top { display: flex; align-items: baseline; gap: 12px; margin-bottom: 6px; }
+.hdr h1 { font-size: 19px; font-weight: 500; letter-spacing: 0.04em; }
+.hdr-tag { font-size: 11px; color: var(--text-muted); font-weight: 300; letter-spacing: 0.08em; }
+.hdr p   { font-size: 12px; color: var(--text-muted); font-weight: 300; max-width: 580px; line-height: 1.65; }
+
+/* ── Stats row ── */
+.stats { display: grid; grid-template-columns: repeat(4,1fr); gap: 10px; margin-bottom: 22px; }
+.stat {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  backdrop-filter: blur(16px);
+  padding: 14px 16px 12px;
+}
+.stat-val { font-size: 22px; font-weight: 600; line-height: 1; margin-bottom: 4px; }
+.stat-lbl { font-size: 10px; text-transform: uppercase; letter-spacing: 0.10em; color: var(--text-muted); }
+.c-teal  { color: var(--teal); }
+.c-amber { color: var(--amber); }
+.c-green { color: var(--green); }
+.c-coral { color: var(--coral); }
+
+/* ── Two-col layout ── */
+.layout { display: grid; grid-template-columns: 294px 1fr; gap: 18px; align-items: start; }
+
+/* ── Card ── */
+.card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  padding: 22px;
+}
+
+/* ── Sidebar sections ── */
+.sidebar { display: flex; flex-direction: column; gap: 14px; }
+.section-label {
+  font-size: 10px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.12em;
+  color: var(--text-muted); margin-bottom: 8px;
+}
+.fields { display: flex; flex-direction: column; gap: 14px; }
+.field label {
+  display: block; font-size: 10px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.11em;
+  color: var(--text-muted); margin-bottom: 5px;
+}
+.field input[type=text] {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--border-md);
+  border-radius: 7px;
+  color: var(--text);
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 13px;
+  padding: 8px 11px;
+  outline: none;
+  transition: border-color 0.2s;
+}
+.field input[type=text]:focus { border-color: var(--teal); }
+.field input[type=text]::placeholder { color: var(--text-dim); }
+.field small { display:block; font-size:10px; color:var(--text-dim); line-height:1.55; margin-top:4px; }
+
+/* ── Pill toggles ── */
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill {
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 11px; font-weight: 500;
+  cursor: pointer;
+  border: 1px solid var(--border-md);
+  background: transparent;
+  color: var(--text-muted);
+  transition: all 0.18s;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+.pill:hover { border-color: var(--text-muted); color: var(--text); }
+.pill.on { background: var(--teal-glow); border-color: var(--teal); color: var(--teal); }
+.pill.on-amber { background: var(--amber-glow); border-color: var(--amber); color: var(--amber); }
+
+/* ── Rule ── */
+.rule { border: none; border-top: 1px solid var(--border); }
+
+/* ── Buttons ── */
+.btn {
+  width: 100%;
+  padding: 9px 16px;
+  border-radius: 8px;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 13px; font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: all 0.18s;
+  border: 1px solid;
+}
+.btn:disabled { opacity: 0.32; cursor: not-allowed; }
+.btn-run  { background: var(--teal); color: #050d0e; border-color: var(--teal); }
+.btn-run:hover:not(:disabled)  { filter: brightness(1.1); }
+.btn-stop { background: transparent; color: var(--coral); border-color: var(--coral); }
+.btn-stop:hover:not(:disabled) { background: var(--coral-glow); }
+
+/* ── Progress + Log ── */
+.prog-row { display: flex; justify-content: space-between; font-size: 11px; color: var(--text-muted); margin-bottom: 6px; }
+.prog-track { height: 2px; background: var(--border); border-radius: 2px; overflow: hidden; }
+.prog-fill  { height: 100%; width: 0%; background: var(--teal); transition: width 0.4s ease; }
+.log {
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  padding: 9px 11px;
+  height: 116px;
+  overflow-y: auto;
+  font-size: 11px; line-height: 1.7;
+  color: var(--text-muted);
+  margin-top: 10px;
+}
+.log::-webkit-scrollbar { width: 3px; }
+.log::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 2px; }
+.log .ok   { color: var(--green); }
+.log .err  { color: var(--coral); }
+.log .info { color: var(--teal); }
+.log .warn { color: var(--amber); }
+
+/* ── Results panel ── */
+.rp { display: flex; flex-direction: column; gap: 14px; }
+
+/* ── Toolbar card ── */
+.toolbar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 13px 18px; }
+.tbl-label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.10em; color: var(--text-muted); white-space: nowrap; }
+.search {
+  background: var(--input-bg);
+  border: 1px solid var(--border-md);
+  border-radius: 7px;
+  color: var(--text);
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 12px; padding: 6px 11px;
+  outline: none; width: 200px;
+  transition: border-color 0.2s;
+}
+.search:focus { border-color: var(--teal); }
+.search::placeholder { color: var(--text-dim); }
+.showing { margin-left: auto; font-size: 11px; color: var(--text-muted); white-space: nowrap; }
+
+/* ── Table ── */
+.tbl-wrap {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: rgba(0,0,0,0.32);
+  backdrop-filter: blur(14px);
+  min-height: 200px; max-height: 480px;
+  overflow-y: auto; overflow-x: auto;
+}
+.tbl-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
+.tbl-wrap::-webkit-scrollbar-thumb { background: var(--border-md); border-radius: 2px; }
+table { width: 100%; border-collapse: collapse; }
+thead tr { border-bottom: 1px solid var(--border-md); background: rgba(0,0,0,0.36); position: sticky; top: 0; z-index: 2; }
+th {
+  text-align: left; padding: 9px 14px;
+  font-size: 10px; font-weight: 500;
+  text-transform: uppercase; letter-spacing: 0.10em;
+  color: var(--text-muted); white-space: nowrap;
+}
+td { padding: 6px 14px; border-bottom: 1px solid rgba(216,216,216,0.045); vertical-align: middle; }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: rgba(255,255,255,0.02); }
+td a { color: var(--teal); text-decoration: none; word-break: break-all; }
+td a:hover { text-decoration: underline; }
+.empty-row { padding: 52px; text-align: center; color: var(--text-dim); font-size: 12px; line-height: 1.7; }
+
+/* ── Badges ── */
+.badge {
+  display: inline-block; font-size: 9px;
+  padding: 2px 7px; border-radius: 10px;
+  font-weight: 500; letter-spacing: 0.06em;
+  text-transform: uppercase; white-space: nowrap;
+}
+.b-page    { background: var(--green-glow); color: var(--green);       border: 1px solid rgba(122,189,160,0.3); }
+.b-image   { background: var(--teal-glow);  color: var(--teal);        border: 1px solid rgba(110,196,206,0.3); }
+.b-asset   { background: rgba(216,216,216,0.07); color: var(--text-muted); border: 1px solid var(--border-md); }
+.b-file    { background: var(--amber-glow); color: var(--amber);       border: 1px solid rgba(200,169,110,0.3); }
+.s2 { color: var(--green); font-size: 11px; }
+.s3 { color: var(--amber); font-size: 11px; }
+.s4 { color: var(--coral); font-size: 11px; }
+
+/* ── Downloads ── */
+.dl-row { display: flex; gap: 8px; flex-wrap: wrap; padding: 13px 18px; }
+.dl-btn {
+  padding: 6px 14px; border-radius: 20px;
+  font-family: 'Hanken Grotesk', sans-serif;
+  font-size: 11px; font-weight: 500;
+  cursor: pointer; background: transparent;
+  color: var(--amber); border: 1px solid rgba(200,169,110,0.32);
+  transition: all 0.18s;
+}
+.dl-btn:hover:not(:disabled) { background: var(--amber-glow); }
+.dl-btn:disabled { opacity: 0.28; cursor: not-allowed; }
+
+/* ── Info box ── */
+.info-box {
+  background: rgba(110,196,206,0.07);
+  border: 1px solid rgba(110,196,206,0.22);
+  border-radius: 8px;
+  padding: 10px 13px;
+  font-size: 11px; color: var(--text-muted); line-height: 1.65;
+}
+.info-box strong { color: var(--teal); font-weight: 500; }
+
+/* ── Responsive ── */
+@media (max-width: 800px) {
+  .layout { grid-template-columns: 1fr; }
+  .stats  { grid-template-columns: 1fr 1fr; }
+}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="shell">
+
+  <!-- Header -->
+  <div class="hdr">
+    <div class="hdr-top">
+      <h1>Wayback CDX Bulk Fetcher</h1>
+      <span class="hdr-tag">Internet Archive · CDX API · v3</span>
+    </div>
+    <p>Retrieve 100,000+ captured URLs and assets for any domain or URL prefix from the Wayback Machine index. Supports full paths — e.g. <code style="color:var(--teal);font-size:11px;">images.squarespace-cdn.com/content/v1/abc123</code></p>
+  </div>
+
+  <!-- Stats -->
+  <div class="stats">
+    <div class="stat"><div class="stat-val c-teal" id="s-total">—</div><div class="stat-lbl">Total URLs</div></div>
+    <div class="stat"><div class="stat-val c-amber" id="s-images">—</div><div class="stat-lbl">Images</div></div>
+    <div class="stat"><div class="stat-val c-green" id="s-pages">—</div><div class="stat-lbl">Pages</div></div>
+    <div class="stat"><div class="stat-val c-coral" id="s-pages-n">—</div><div class="stat-lbl">CDX Pages</div></div>
+  </div>
+
+  <div class="layout">
+
+    <!-- ── Sidebar ── -->
+    <div class="sidebar">
+      <div class="card">
+        <div class="fields">
+
+          <div class="field">
+            <label>URL Prefix</label>
+            <input type="text" id="inp-url" placeholder="example.com or domain.com/path">
+            <small>Paste a domain, subdomain, or full path prefix. Protocol is stripped automatically.</small>
+          </div>
+
+          <div class="field">
+            <label>Date From <span style="font-weight:300;text-transform:none;letter-spacing:0;">(optional)</span></label>
+            <input type="text" id="inp-from" placeholder="20100101">
+          </div>
+
+          <div class="field">
+            <label>Date To <span style="font-weight:300;text-transform:none;letter-spacing:0;">(optional)</span></label>
+            <input type="text" id="inp-to" placeholder="20241231">
+          </div>
+
+          <div class="field">
+            <label>Page Size</label>
+            <div class="pills" id="pg-pills">
+              <button class="pill on" onclick="setPgSize(this,1)">~3k / page</button>
+              <button class="pill" onclick="setPgSize(this,3)">~9k / page</button>
+              <button class="pill" onclick="setPgSize(this,10)">~30k / page</button>
+              <button class="pill" onclick="setPgSize(this,30)">~90k / page</button>
+            </div>
+            <small>Smaller pages are more reliable. Larger pages are faster but may time out.</small>
+          </div>
+
+          <div class="field">
+            <label>Font Size</label>
+            <div class="pills" id="fs-pills">
+              <button class="pill" onclick="setFont(this,'12px')">S</button>
+              <button class="pill on" onclick="setFont(this,'14px')">M</button>
+              <button class="pill" onclick="setFont(this,'16px')">L</button>
+              <button class="pill" onclick="setFont(this,'18px')">XL</button>
+            </div>
+          </div>
+
+          <hr class="rule">
+
+          <button class="btn btn-run"  id="btn-run"  onclick="startFetch()">▶ Fetch All Data</button>
+          <button class="btn btn-stop" id="btn-stop" onclick="stopFetch()" disabled>■ Stop</button>
+        </div>
+      </div>
+
+      <!-- Progress + Log -->
+      <div class="card">
+        <div class="prog-row">
+          <span id="prog-label" style="font-size:11px;">idle</span>
+          <span id="prog-pct"   style="font-size:11px;">—</span>
+        </div>
+        <div class="prog-track"><div class="prog-fill" id="prog-fill"></div></div>
+        <div class="log" id="log">
+          <div class="info">Ready. Enter a URL prefix and press Fetch All Data.</div>
+        </div>
+      </div>
+
+      <!-- Info -->
+      <div class="info-box">
+        <strong>About outlinks:</strong> The CDX API indexes captured URLs, not the link graph. Extracting outlinks (external URLs <em>from</em> a site) requires fetching and parsing each archived HTML page — this is not feasible via browser. To find external assets for a Squarespace site, run a separate fetch on its CDN path directly (e.g. <code style="color:var(--teal);">images.squarespace-cdn.com/content/v1/[site-id]</code>).
+      </div>
+    </div>
+
+    <!-- ── Results ── -->
+    <div class="rp">
+
+      <!-- Toolbar -->
+      <div class="card toolbar">
+        <span class="tbl-label">Filter</span>
+        <div class="pills" id="kind-pills">
+          <button class="pill on" onclick="setKind(this,'all')">All</button>
+          <button class="pill" onclick="setKind(this,'page')">Pages</button>
+          <button class="pill" onclick="setKind(this,'image')">Images</button>
+          <button class="pill" onclick="setKind(this,'asset')">CSS / JS</button>
+          <button class="pill" onclick="setKind(this,'file')">Files</button>
+        </div>
+        <input class="search" type="text" id="filter-q" placeholder="Search URLs…" oninput="renderTable()">
+        <span class="showing" id="showing">no data</span>
+      </div>
+
+      <!-- Table -->
+      <div class="tbl-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:55%">URL</th>
+              <th style="width:10%">Type</th>
+              <th style="width:18%">MIME</th>
+              <th style="width:7%">Status</th>
+              <th style="width:10%">Archive</th>
+            </tr>
+          </thead>
+          <tbody id="tbody">
+            <tr><td colspan="5" class="empty-row">Configure a URL prefix above and press <strong style="color:var(--teal)">Fetch All Data</strong> to begin.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <!-- Downloads -->
+      <div class="card dl-row">
+        <button class="dl-btn" id="dl-all"    onclick="dl('all')"    disabled>↓ All URLs (.txt)</button>
+        <button class="dl-btn" id="dl-img"    onclick="dl('image')"  disabled>↓ Images</button>
+        <button class="dl-btn" id="dl-pages"  onclick="dl('pages')"  disabled>↓ Pages</button>
+        <button class="dl-btn" id="dl-csv"    onclick="dl('csv')"    disabled>↓ Full CSV</button>
+        <button class="dl-btn" id="dl-report" onclick="dl('report')" disabled>↓ Full report (.txt)</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ──────────────────────────────────────────────
+   CONFIG
+────────────────────────────────────────────── */
+const CDX_URL   = 'https://web.archive.org/cdx/search/cdx';
+const TIMEOUT_MS = 50000;   // 50s per request
+const MAX_RETRY  = 2;
+const DISP_LIMIT = 2000;
+
+const IMG_EXT   = /\.(jpe?g|png|gif|webp|svg|ico|bmp|tiff?|avif|heic|raw)(\?|$)/i;
+const FILE_EXT  = /\.(pdf|zip|rar|7z|mp4|mp3|mov|avi|psd|ai|eps|docx?|xlsx?|pptx?|dmg|exe|swf)(\?|$)/i;
+const ASSET_EXT = /\.(css|js|woff2?|ttf|eot|map)(\?|$)/i;
+
+/* ──────────────────────────────────────────────
+   STATE
+────────────────────────────────────────────── */
+let allRows    = [];
+let stopped    = false;
+let running    = false;
+let pgSize     = 1;          // CDX pageSize (blocks, ~3k results each)
+let activeKind = 'all';
+
+/* ──────────────────────────────────────────────
+   HELPERS
+────────────────────────────────────────────── */
+function classify(url) {
+  if (!url) return 'page';
+  if (IMG_EXT.test(url))   return 'image';
+  if (FILE_EXT.test(url))  return 'file';
+  if (ASSET_EXT.test(url)) return 'asset';
+  return 'page';
+}
+
+function cleanPrefix(raw) {
+  return raw.trim()
+    .replace(/^https?:\/\//i, '')   // strip protocol
+    .replace(/\/+$/, '');            // strip trailing slash
+}
+
+function log(msg, cls) {
+  const box = document.getElementById('log');
+  const d = document.createElement('div');
+  if (cls) d.className = cls;
+  d.textContent = '› ' + msg;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+
+function setProgress(label, pct) {
+  document.getElementById('prog-label').textContent = label;
+  document.getElementById('prog-pct').textContent   = pct != null ? Math.round(pct) + '%' : '—';
+  document.getElementById('prog-fill').style.width  = (pct || 0) + '%';
+}
+
+function updateStats(totalPages) {
+  const fmt = n => n.toLocaleString();
+  document.getElementById('s-total').textContent   = fmt(allRows.length);
+  document.getElementById('s-images').textContent  = fmt(allRows.filter(r => r.kind === 'image').length);
+  document.getElementById('s-pages').textContent   = fmt(allRows.filter(r => r.kind === 'page').length);
+  document.getElementById('s-pages-n').textContent = totalPages != null ? fmt(totalPages) : '—';
+}
+
+/* ──────────────────────────────────────────────
+   UI TOGGLES
+────────────────────────────────────────────── */
+function setPgSize(el, val) {
+  pgSize = val;
+  document.querySelectorAll('#pg-pills .pill').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+}
+
+function setFont(el, val) {
+  document.documentElement.style.setProperty('--fs', val);
+  document.querySelectorAll('#fs-pills .pill').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+}
+
+function setKind(el, kind) {
+  activeKind = kind;
+  document.querySelectorAll('#kind-pills .pill').forEach(b => b.classList.remove('on'));
+  el.classList.add('on');
+  renderTable();
+}
+
+/* ──────────────────────────────────────────────
+   CDX FETCH
+────────────────────────────────────────────── */
+
+/** fetch() with AbortController timeout */
+async function timedFetch(url) {
+  const ctrl  = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), TIMEOUT_MS);
+  try {
+    const r = await fetch(url, { signal: ctrl.signal });
+    clearTimeout(timer);
+    return r;
+  } catch (e) {
+    clearTimeout(timer);
+    if (e.name === 'AbortError')
+      throw new Error('Request timed out after ' + (TIMEOUT_MS / 1000) + 's — try a smaller page size');
+    throw new Error('Network error: ' + e.message);
+  }
+}
+
+/** Build a CDX query URL from params object */
+function cdxUrl(params) {
+  return CDX_URL + '?' + new URLSearchParams(params);
+}
+
+/** Step 1: get the total page count for a query */
+async function getNumPages(baseParams) {
+  const url = cdxUrl({ ...baseParams, showNumPages: 'true', pageSize: pgSize });
+  log('Checking total page count…', 'info');
+  const r = await timedFetch(url);
+  if (!r.ok) throw new Error('CDX returned HTTP ' + r.status + ' on page-count query');
+  const txt = (await r.text()).trim();
+  const n = parseInt(txt);
+  if (isNaN(n)) throw new Error('Unexpected CDX response: ' + txt.slice(0, 120));
+  return n;
+}
+
+/** Step 2: fetch a single CDX page, with retry + backoff */
+async function fetchPage(baseParams, page) {
+  const url = cdxUrl({ ...baseParams, output: 'text', page, pageSize: pgSize });
+  let lastErr;
+  for (let attempt = 0; attempt <= MAX_RETRY; attempt++) {
+    if (attempt > 0) {
+      const wait = 1500 * attempt;
+      log(`Retry ${attempt}/${MAX_RETRY} for page ${page} (waiting ${wait}ms)…`, 'warn');
+      await new Promise(res => setTimeout(res, wait));
+    }
+    try {
+      const r = await timedFetch(url);
+      if (r.status === 400) return [];          // page index out of range — done
+      if (!r.ok) throw new Error('HTTP ' + r.status);
+      const txt = await r.text();
+      return txt.trim()
+        ? txt.trim().split('\n').filter(Boolean).map(l => l.split(' '))
+        : [];
+    } catch (e) {
+      lastErr = e;
+    }
+  }
+  throw lastErr;
+}
+
+/* ──────────────────────────────────────────────
+   MAIN ORCHESTRATOR
+────────────────────────────────────────────── */
+async function startFetch() {
+  if (running) return;
+
+  const rawInput = document.getElementById('inp-url').value;
+  if (!rawInput.trim()) {
+    log('Please enter a URL prefix first.', 'err');
+    return;
+  }
+
+  running = true;
+  stopped = false;
+  allRows = [];
+
+  document.getElementById('btn-run').disabled  = true;
+  document.getElementById('btn-stop').disabled = false;
+  ['dl-all','dl-img','dl-pages','dl-csv','dl-report']
+    .forEach(id => { document.getElementById(id).disabled = true; });
+  document.getElementById('log').innerHTML = '';
+  document.getElementById('tbody').innerHTML = '<tr><td colspan="5" class="empty-row">Fetching…</td></tr>';
+  document.getElementById('showing').textContent = '—';
+
+  const prefix   = cleanPrefix(rawInput);
+  const fromDate = document.getElementById('inp-from').value.trim();
+  const toDate   = document.getElementById('inp-to').value.trim();
+
+  const baseParams = {
+    url:      prefix + '/*',
+    fl:       'original,mimetype,statuscode,timestamp',
+    collapse: 'urlkey',
+  };
+  if (fromDate) baseParams.from = fromDate;
+  if (toDate)   baseParams.to   = toDate;
+
+  log('Prefix: ' + prefix + '/*', 'info');
+  log('Page size: ~' + (pgSize * 3000).toLocaleString() + ' records/page', 'info');
+  setProgress('Getting page count…', 2);
+
+  try {
+    /* Step 1: page count */
+    const numPages = await getNumPages(baseParams);
+    log('Total CDX pages: ' + numPages, 'ok');
+    updateStats(numPages);
+
+    if (numPages === 0) {
+      log('No results found for this prefix.', 'warn');
+      document.getElementById('tbody').innerHTML =
+        '<tr><td colspan="5" class="empty-row">No archived URLs found for this prefix.<br>Try a broader domain or different date range.</td></tr>';
+      finishFetch(); return;
+    }
+
+    /* Step 2: fetch each page */
+    const seen = new Set();
+    for (let p = 0; p < numPages && !stopped; p++) {
+      const pct = 5 + Math.round((p / numPages) * 90);
+      setProgress(`Page ${p + 1} of ${numPages}…`, pct);
+
+      const rows = await fetchPage(baseParams, p);
+      let newCount = 0;
+      for (const r of rows) {
+        const url = r[0];
+        if (!url || seen.has(url)) continue;
+        seen.add(url);
+        allRows.push({ url, mime: r[1] || '', status: r[2] || '', ts: r[3] || '', kind: classify(url) });
+        newCount++;
+      }
+      log(`Page ${p + 1}/${numPages} — +${newCount.toLocaleString()} new URLs (total: ${allRows.length.toLocaleString()})`, 'ok');
+      updateStats(numPages);
+
+      /* Render first page immediately so user sees data */
+      if (p === 0) renderTable();
+    }
+
+    if (stopped) {
+      log('Stopped by user. Partial results are available.', 'warn');
+    } else {
+      setProgress('Complete', 100);
+      log(`Done. ${allRows.length.toLocaleString()} unique URLs collected.`, 'ok');
+    }
+
+    updateStats(numPages);
+    renderTable();
+    enableDownloads();
+
+  } catch (e) {
+    log('Error: ' + e.message, 'err');
+    setProgress('Error', 0);
+    if (allRows.length > 0) {
+      log('Partial results available — you can still download what was collected.', 'warn');
+      enableDownloads();
+    }
+  }
+
+  finishFetch();
+}
+
+function stopFetch() {
+  stopped = true;
+  log('Stop requested — finishing current page…', 'warn');
+}
+
+function finishFetch() {
+  running = false;
+  document.getElementById('btn-run').disabled  = false;
+  document.getElementById('btn-stop').disabled = true;
+}
+
+function enableDownloads() {
+  ['dl-all','dl-img','dl-pages','dl-csv','dl-report']
+    .forEach(id => { document.getElementById(id).disabled = false; });
+}
+
+/* ──────────────────────────────────────────────
+   TABLE RENDER
+────────────────────────────────────────────── */
+function renderTable() {
+  const q = document.getElementById('filter-q').value.toLowerCase();
+
+  const rows = allRows.filter(r => {
+    if (activeKind !== 'all' && r.kind !== activeKind) return false;
+    if (q && !r.url.toLowerCase().includes(q)) return false;
+    return true;
+  });
+
+  const tbody = document.getElementById('tbody');
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-row">No matching results.</td></tr>';
+    document.getElementById('showing').textContent = '0 rows';
+    return;
+  }
+
+  const shown = rows.slice(0, DISP_LIMIT);
+  tbody.innerHTML = shown.map(r => {
+    const safe  = r.url.replace(/&/g, '&amp;').replace(/</g, '&lt;');
+    const wbUrl = r.ts
+      ? 'https://web.archive.org/web/' + r.ts + '/' + r.url
+      : 'https://web.archive.org/web/*/' + r.url;
+    const sc    = parseInt(r.status);
+    const scCls = sc >= 200 && sc < 300 ? 's2' : sc >= 300 && sc < 400 ? 's3' : sc >= 400 ? 's4' : '';
+    return `<tr>
+      <td><a href="${wbUrl}" target="_blank" rel="noopener">${safe}</a></td>
+      <td><span class="badge b-${r.kind}">${r.kind}</span></td>
+      <td style="color:var(--text-muted);font-size:10px;">${r.mime || '—'}</td>
+      <td class="${scCls}">${r.status || '—'}</td>
+      <td><a href="${wbUrl}" target="_blank" rel="noopener" style="font-size:10px;color:var(--text-muted);">↗ view</a></td>
+    </tr>`;
+  }).join('');
+
+  const msg = rows.length > DISP_LIMIT
+    ? `Showing ${DISP_LIMIT.toLocaleString()} of ${rows.length.toLocaleString()} — download for full list`
+    : `${rows.length.toLocaleString()} rows`;
+  document.getElementById('showing').textContent = msg;
+}
+
+/* ──────────────────────────────────────────────
+   DOWNLOADS
+────────────────────────────────────────────── */
+function dl(type) {
+  const prefix = cleanPrefix(document.getElementById('inp-url').value) || 'export';
+  const safe   = prefix.replace(/[^a-zA-Z0-9._-]/g, '_');
+  let content  = '', filename = '';
+
+  if (type === 'all') {
+    content  = allRows.map(r => r.url).join('\n');
+    filename = safe + '_all_urls.txt';
+
+  } else if (type === 'image') {
+    content  = allRows.filter(r => r.kind === 'image').map(r => r.url).join('\n');
+    filename = safe + '_images.txt';
+
+  } else if (type === 'pages') {
+    content  = allRows.filter(r => r.kind === 'page').map(r => r.url).join('\n');
+    filename = safe + '_pages.txt';
+
+  } else if (type === 'csv') {
+    const header = 'url,kind,mimetype,statuscode,timestamp';
+    const rows   = allRows.map(r =>
+      [r.url, r.kind, r.mime, r.status, r.ts]
+        .map(v => '"' + (v || '').replace(/"/g, '""') + '"').join(',')
+    );
+    content  = [header, ...rows].join('\n');
+    filename = safe + '_full.csv';
+
+  } else if (type === 'report') {
+    const sep = '='.repeat(72);
+    const lines = [
+      sep,
+      'WAYBACK CDX BULK REPORT',
+      'Prefix   : ' + prefix + '/*',
+      'Generated: ' + new Date().toISOString(),
+      sep, '',
+      'SUMMARY',
+      '─'.repeat(40),
+      'Total unique URLs  : ' + allRows.length.toLocaleString(),
+      '  Pages / HTML     : ' + allRows.filter(r => r.kind === 'page').length.toLocaleString(),
+      '  Images           : ' + allRows.filter(r => r.kind === 'image').length.toLocaleString(),
+      '  CSS / JS assets  : ' + allRows.filter(r => r.kind === 'asset').length.toLocaleString(),
+      '  Other files      : ' + allRows.filter(r => r.kind === 'file').length.toLocaleString(),
+      '', sep, 'SECTION 1: ALL PAGES', sep,
+    ];
+    allRows.filter(r => r.kind === 'page')
+      .forEach(r => lines.push([r.url, r.status, r.ts].join('\t')));
+    lines.push('', sep, 'SECTION 2: ALL IMAGES', sep);
+    allRows.filter(r => r.kind === 'image').forEach(r => lines.push(r.url));
+    lines.push('', sep, 'SECTION 3: FILES (PDF, video, etc.)', sep);
+    allRows.filter(r => r.kind === 'file').forEach(r => lines.push(r.url));
+    lines.push('', sep, 'SECTION 4: CSS / JS ASSETS', sep);
+    allRows.filter(r => r.kind === 'asset').forEach(r => lines.push(r.url));
+    lines.push('', sep, 'SECTION 5: FULL URL LIST', sep);
+    allRows.forEach(r => lines.push([r.url, r.kind, r.mime, r.status, r.ts].join('\t')));
+    content  = lines.join('\n');
+    filename = safe + '_wayback_report.txt';
+  }
+
+  const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+  const a    = document.createElement('a');
+  a.href     = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+}
+</script>
+</body>
+</html>
