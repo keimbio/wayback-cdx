@@ -1,0 +1,187 @@
+
+<h2 class="sr-only">Wayback Machine CDX sitemap and outlink fetcher for markmaggiori.com</h2>
+<div style="padding: 1.25rem 0 0;">
+  <div style="display:grid; grid-template-columns: 1fr 1fr 1fr; gap:12px; margin-bottom:1.5rem;">
+    <div style="background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:1rem; text-align:center;">
+      <div style="font-size:13px; color:var(--color-text-secondary); margin-bottom:4px;">captured URLs</div>
+      <div style="font-size:24px; font-weight:500;" id="cnt-urls">—</div>
+    </div>
+    <div style="background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:1rem; text-align:center;">
+      <div style="font-size:13px; color:var(--color-text-secondary); margin-bottom:4px;">image files</div>
+      <div style="font-size:24px; font-weight:500;" id="cnt-images">—</div>
+    </div>
+    <div style="background:var(--color-background-secondary); border-radius:var(--border-radius-md); padding:1rem; text-align:center;">
+      <div style="font-size:13px; color:var(--color-text-secondary); margin-bottom:4px;">outlink domains</div>
+      <div style="font-size:24px; font-weight:500;" id="cnt-domains">—</div>
+    </div>
+  </div>
+
+  <div style="display:flex; gap:10px; margin-bottom:1rem; flex-wrap:wrap;">
+    <button onclick="run()" id="btn-run" style="padding:8px 18px; font-size:14px;">Fetch all data ↗</button>
+    <button onclick="downloadTxt()" id="btn-dl" style="padding:8px 18px; font-size:14px;" disabled>Download report</button>
+    <select id="filter-sel" style="font-size:14px; padding:6px 10px;" onchange="renderTable()">
+      <option value="all">all URLs</option>
+      <option value="page">pages / html</option>
+      <option value="image">images</option>
+      <option value="asset">CSS / JS</option>
+      <option value="file">files (PDF etc.)</option>
+      <option value="outlink">outlinks</option>
+    </select>
+  </div>
+
+  <div id="status" style="font-size:13px; color:var(--color-text-secondary); margin-bottom:10px;"></div>
+
+  <div id="table-wrap" style="overflow-x:auto; border-radius:var(--border-radius-md); border:0.5px solid var(--color-border-tertiary);">
+    <table id="main-table" style="width:100%; border-collapse:collapse; font-size:13px; table-layout:fixed;">
+      <thead>
+        <tr style="border-bottom:0.5px solid var(--color-border-tertiary); background:var(--color-background-secondary);">
+          <th style="text-align:left; padding:8px 12px; font-weight:500; color:var(--color-text-secondary); width:55%;">URL</th>
+          <th style="text-align:left; padding:8px 12px; font-weight:500; color:var(--color-text-secondary); width:25%;">type / mime</th>
+          <th style="text-align:left; padding:8px 12px; font-weight:500; color:var(--color-text-secondary); width:20%;">status</th>
+        </tr>
+      </thead>
+      <tbody id="table-body">
+        <tr><td colspan="3" style="padding:2rem; text-align:center; color:var(--color-text-secondary);">press "fetch all data" to begin</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div id="showing" style="font-size:12px; color:var(--color-text-tertiary); margin-top:6px;"></div>
+</div>
+
+<script>
+const TARGET = 'markmaggiori.com';
+const CDX = 'https://web.archive.org/cdx/search/cdx';
+const IMG_EXT = /\.(jpg|jpeg|png|gif|webp|svg|ico|bmp|tiff?|avif)(\?|$)/i;
+const FILE_EXT = /\.(pdf|zip|mp4|mp3|mov|psd|ai|eps|docx?|xlsx?)(\?|$)/i;
+const ASSET_EXT = /\.(css|js|woff2?|ttf|eot)(\?|$)/i;
+
+let allRows = [];
+let outlinks = [];
+
+async function fetchCDX(params) {
+  const url = CDX + '?' + new URLSearchParams(params);
+  const r = await fetch(url);
+  if (!r.ok) throw new Error('CDX ' + r.status);
+  const txt = await r.text();
+  if (!txt.trim()) return [];
+  return txt.trim().split('\n').map(l => l.split(' '));
+}
+
+function classifyUrl(u) {
+  if (IMG_EXT.test(u)) return 'image';
+  if (FILE_EXT.test(u)) return 'file';
+  if (ASSET_EXT.test(u)) return 'asset';
+  return 'page';
+}
+
+function status(msg) { document.getElementById('status').textContent = msg; }
+
+async function run() {
+  const btn = document.getElementById('btn-run');
+  btn.disabled = true;
+  btn.textContent = 'fetching…';
+  allRows = []; outlinks = [];
+
+  try {
+    status('fetching sitemap URLs…');
+    const raw = await fetchCDX({
+      url: TARGET + '/*',
+      output: 'text',
+      fl: 'original,mimetype,statuscode',
+      collapse: 'urlkey',
+      limit: 3000
+    });
+    allRows = raw.map(r => ({ url: r[0]||'', mime: r[1]||'', status: r[2]||'', kind: classifyUrl(r[0]||'') }));
+
+    status('fetching outlinks…');
+    try {
+      const oRaw = await fetchCDX({
+        url: TARGET + '/*',
+        output: 'text',
+        fl: 'original',
+        showLinksTo: 'true',
+        collapse: 'urlkey',
+        limit: 3000
+      });
+      const siteSet = new Set(allRows.map(r => r.url));
+      outlinks = oRaw
+        .map(r => r[0])
+        .filter(u => u && !u.includes(TARGET) && !siteSet.has(u));
+    } catch(e) { outlinks = []; }
+
+    const imgs = allRows.filter(r => r.kind === 'image').length;
+    const domainSet = new Set(outlinks.map(u => { try { return new URL(u).hostname; } catch{ return u; }}));
+
+    document.getElementById('cnt-urls').textContent = allRows.length;
+    document.getElementById('cnt-images').textContent = imgs;
+    document.getElementById('cnt-domains').textContent = domainSet.size;
+    document.getElementById('btn-dl').disabled = false;
+    status('done — ' + allRows.length + ' captured URLs, ' + outlinks.length + ' outlinks');
+    renderTable();
+  } catch(e) {
+    status('error: ' + e.message);
+    btn.textContent = 'retry';
+    btn.disabled = false;
+    return;
+  }
+  btn.textContent = 're-fetch';
+  btn.disabled = false;
+}
+
+function renderTable() {
+  const filter = document.getElementById('filter-sel').value;
+  let rows;
+  if (filter === 'outlink') {
+    rows = outlinks.map(u => ({ url: u, mime: 'outlink', status: '—', kind: 'outlink' }));
+  } else if (filter === 'all') {
+    rows = allRows;
+  } else {
+    rows = allRows.filter(r => r.kind === filter);
+  }
+
+  const PAGE = 500;
+  const shown = rows.slice(0, PAGE);
+  const tbody = document.getElementById('table-body');
+  tbody.innerHTML = shown.map(r => {
+    const safe = r.url.replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    const label = r.kind;
+    const color = {image:'#185FA5', file:'#993C1D', asset:'#5F5E5A', page:'#3B6D11', outlink:'#533AB7'}[r.kind] || '#888';
+    return `<tr style="border-bottom:0.5px solid var(--color-border-tertiary);">
+      <td style="padding:6px 12px; word-break:break-all;"><a href="${r.url}" target="_blank" style="color:var(--color-text-info); text-decoration:none; font-size:12px;">${safe}</a></td>
+      <td style="padding:6px 12px; font-size:12px; color:var(--color-text-secondary);">${r.mime||label}</td>
+      <td style="padding:6px 12px;"><span style="font-size:11px; padding:2px 7px; border-radius:4px; background:var(--color-background-secondary); color:var(--color-text-secondary);">${r.status||'—'}</span></td>
+    </tr>`;
+  }).join('');
+  document.getElementById('showing').textContent = shown.length < rows.length
+    ? 'showing first ' + PAGE + ' of ' + rows.length + ' (download for full list)'
+    : rows.length + ' rows';
+}
+
+function downloadTxt() {
+  const lines = ['WAYBACK MACHINE REPORT: ' + TARGET, '='.repeat(60), ''];
+  lines.push('CAPTURED URLs (' + allRows.length + ')');
+  lines.push('-'.repeat(40));
+  allRows.forEach(r => lines.push(r.url + '\t' + r.mime + '\t' + r.status));
+  lines.push('', 'OUTLINKS (' + outlinks.length + ')');
+  lines.push('-'.repeat(40));
+
+  const domainMap = {};
+  outlinks.forEach(u => {
+    try { const d = new URL(u).hostname; (domainMap[d] = domainMap[d]||[]).push(u); } catch{}
+  });
+  Object.entries(domainMap).sort().forEach(([d, urls]) => {
+    lines.push('\n[' + d + '] — ' + urls.length + ' link(s)');
+    urls.forEach(u => lines.push('  ' + u));
+  });
+
+  lines.push('', 'IMAGE URLs');
+  lines.push('-'.repeat(40));
+  allRows.filter(r => r.kind==='image').forEach(r => lines.push(r.url));
+
+  const blob = new Blob([lines.join('\n')], {type:'text/plain'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = 'maggiori_wayback_report.txt';
+  a.click();
+}
+</script>
